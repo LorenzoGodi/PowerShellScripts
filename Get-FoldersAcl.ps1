@@ -4,6 +4,8 @@
         [Parameter(Mandatory=$true)]
         $MainPath,
         [Parameter(Mandatory=$true)]
+        $IsDFS = $false,
+        [Parameter(Mandatory=$true)]
         $Levels,
         [Parameter(Mandatory=$false)]
         $IgnoreLinkFolders = $true,
@@ -41,8 +43,26 @@
 
             # Create folder object
             $folder = new-object PSObject
-            $folder | Add-Member -NotePropertyName Name -NotePropertyValue $folderRaw.Name
-            $folder | Add-Member -NotePropertyName Path -NotePropertyValue $folderRaw.PSPath.Substring($folderRaw.PSPath.IndexOf("::") + 2)
+
+            # Get path
+            $folderPath = $folderRaw.PSPath.Substring($folderRaw.PSPath.IndexOf("::") + 2)
+
+            if ($IsDFS) {
+                # Obtained path was dfs
+                $folder | Add-Member -NotePropertyName LinkName -NotePropertyValue $folderRaw.Name
+                $folder | Add-Member -NotePropertyName LinkPath -NotePropertyValue $folderPath
+
+                # Get Target folder
+                $folderTargets = Get-DfsnFolderTarget -Path $folderPathLink | Where-Object {$_.State -eq "Online"} | ForEach-Object {$_.TargetPath} | Select -Unique
+
+                # Effective name and paths
+                $folder | Add-Member -NotePropertyName Name -NotePropertyValue ($folderTargets | ForEach-Object {$_.Substring($_.IndexOf("ne$\") + 4)})[0]
+                $folder | Add-Member -NotePropertyName Paths -NotePropertyValue $folderTargets
+
+                # Set one effective path for getting acls
+                $folderPath = $folderTargets[0]
+            }
+            
 
             # Get ACLs
             $folderAcl = (Get-Acl $folder.Path).Access
@@ -84,7 +104,7 @@
             
             # Write progress
             if ($ShowProgress) {
-                Write-Progress -activity "Collecting all folders..." -status "Completed: $i of $($foldersRaw.Length) items scanned" -percentComplete (($i / $foldersRaw.Length)  * 100)
+                Write-Progress -activity "Collecting all folders. Arm yourself with patience..." -status "Completed: $i of $($foldersRaw.Length) items scanned" -percentComplete (($i / $foldersRaw.Length)  * 100)
             }
         }
     }
