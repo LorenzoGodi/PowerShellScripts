@@ -1,9 +1,4 @@
-﻿$AclCommonMembers = @(
-    'NT AUTHORITY\SYSTEM'
-    'BUILTIN\Administrators'
-)
-
-function Get-FoldersAcl {
+﻿function Get-FoldersAcl {
 
     param (
         [Parameter(Mandatory=$true)]
@@ -13,11 +8,16 @@ function Get-FoldersAcl {
         [Parameter(Mandatory=$false)]
         $IgnoreLinkFolders = $true,
         [Parameter(Mandatory=$false)]
+        $ReturnCommons = $true,
+        [Parameter(Mandatory=$false)]
         $ShowProgress = $true
     )
     
     # Create list of objects representing folders
     $folders = @()
+
+    # Create list of members who own access to all folders
+    $aclCommonMembers = @()
 
     # Get all folders excluding link folders
     $FoldersRaw = Get-ChildItem -Path $MainPath -Directory -Force -ErrorAction SilentlyContinue
@@ -32,6 +32,9 @@ function Get-FoldersAcl {
 
     # If directory contains folders, collect them
     if ($directoryHasFolders) {
+        # Get ACLs from a folder
+        $aclCommonMembers = (Get-Acl $FoldersRaw[0].PSPath).Access
+
         # Process them
         for ($i = 0; $i -lt $FoldersRaw.Length; $i++) {
             $folderRaw = $FoldersRaw[$i]
@@ -42,19 +45,35 @@ function Get-FoldersAcl {
             $folder | Add-Member -NotePropertyName Path -NotePropertyValue $folderRaw.PSPath.Substring($folderRaw.PSPath.IndexOf("::") + 2)
 
             # Get ACLs
-            #Write-Output $folder.Path
-            $folderAclCommon = (Get-Acl $folder.Path).Access | Where-Object {$_.IdentityReference -in $AclCommonMembers}
-            $folderAclNotCommon = (Get-Acl $folder.Path).Access | Where-Object {$_.IdentityReference -notin $AclCommonMembers}
+            $folderAcl = (Get-Acl $folder.Path).Access
+
+            if ($ReturnCommons) {
+                # Leave in common acls only shared ones
+                $aclCommonMembersNew = @()
+                foreach ($oldAcl in $aclCommonMembers) {
+                    # Tells if acl is still common
+                    $stillCommon = $false
+
+                    # If found, boolean becomes true
+                    foreach ($fldAcl in $folderAcl) {
+                        if ($fldAcl.IdentityReference -eq $oldAcl.IdentityReference) {
+                            $stillCommon = $true
+                        }
+                    }
+
+                    # If found, keep in commons
+                    $aclCommonMembersNew += $oldAcl
+                }
+                $aclCommonMembers = $aclCommonMembersNew
+            }
 
             # Add ACLs
-            $folder | Add-Member -NotePropertyName AccessCommon -NotePropertyValue $folderAclCommon
-            $folder | Add-Member -NotePropertyName Access -NotePropertyValue ($folderAclNotCommon | Where-Object {$_.IsInherited -eq $false})
-            $folder | Add-Member -NotePropertyName AccessInherited -NotePropertyValue ($folderAclNotCommon | Where-Object {$_.IsInherited -eq $true})
+            $folder | Add-Member -NotePropertyName Access -NotePropertyValue $folderAcl
 
             # If necessary, collect subfolders
             if ($Levels -gt 1) {
                 # Get all subfolders
-                $subFolders = Get-FoldersAcl -MainPath $folder.Path -Levels ($Levels - 1) -ShowProgress $false
+                $subFolders = Get-FoldersAcl -MainPath $folder.Path -Levels ($Levels - 1) -IgnoreLinkFolders $true -ReturnCommons $false -ShowProgress $false
 
                 # Add
                 $folder | Add-Member -NotePropertyName Children -NotePropertyValue $subFolders
@@ -70,7 +89,20 @@ function Get-FoldersAcl {
         }
     }
     
+    # Order by name
+    $folders = $folders | Sort-Object -Property Name
+
+    # Return multiple objects
+    $result = new-object PSObject
+    $result | Add-Member -NotePropertyName Folders -NotePropertyValue $folders
+    $result | Add-Member -NotePropertyName CommonAcls -NotePropertyValue $aclCommonMembers
+
+
     # Return
-    return ($folders | Sort-Object -Property Name)
+    if ($ReturnCommons) {
+        return $result
+    } else {
+        return $folders
+    }
 }
 
