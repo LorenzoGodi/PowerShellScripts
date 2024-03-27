@@ -1,8 +1,14 @@
 ﻿function Get-SimpleAcl {
     param (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         $Path
     )
+
+    $clipAd = ''
+    if (!$PSBoundParameters.ContainsKey('Path')) {
+        $clipAd = '(Path from ClipBoard) '
+        $Path = Get-Clipboard
+    }
 
     $acls = (Get-Acl $Path).Access | Sort-Object -Property IsInherited
     
@@ -14,7 +20,7 @@
     $types = @('(F)  ', '(M)  ', '(RX) ', '(RD) ')
     $arrs = @($aclFull, $aclMody, $aclExec, $aclTrav)
 
-    $result = @()
+    $result = @('', "$($clipAd) Acls for:", $Path)
 
     for ($i = 0; $i -lt 4; $i++) {
         $result += ''
