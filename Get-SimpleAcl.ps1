@@ -4,7 +4,7 @@
         $Path
     )
 
-    $acls = (Get-Acl $Path).Access | Where-Object {$_.IsInherited -eq $false}
+    $acls = (Get-Acl $Path).Access | Sort-Object -Property IsInherited
     
     $aclFull = $acls | Where-Object { $_.FileSystemRights -like 'FullControl' }
     $aclMody = $acls | Where-Object { $_.FileSystemRights -like '*Modify*' }         | Where-Object { $_ -notin $aclFull }
@@ -19,7 +19,11 @@
     for ($i = 0; $i -lt 4; $i++) {
         $result += ''
         foreach ($gp in $arrs[$i]) {
-            $result += $types[$i] + $gp.IdentityReference
+            $inh = '    '
+            if (!$gp.IsInherited) {
+                $inh = '[H] '
+            }
+            $result += $inh + $types[$i] + $gp.IdentityReference
         }
     }
 
