@@ -37,7 +37,7 @@ function Get-FoldersAcl {
     $scpProgressPercent = 0
     $scpProgressScan = ""
 
-    return Get-FoldersAclRec -MainPath $MainPath -IsDFS $IsDFS -Levels $Levels -ReturnCommons $true -Progress -1
+    return Get-FoldersAclRec -MainPath $MainPath -IsDFS $IsDFS -Levels $Levels -ReturnCommons $true
 }
 
 function Get-FoldersAclRec {
@@ -111,12 +111,13 @@ function Get-FoldersAclRec {
                 $folder | Add-Member -NotePropertyName DFSPaths -NotePropertyValue $folderTargets
 
                 # Set one effective path for getting acls
-                $folderPathMissing = $true
-                $i = -1
-                while ($folderPathMissing) {
-                    $folderPathMissing = -not (Test-PathActive -Path $folderTargets[++$i])
-                }
-                $folderPath = $folderTargets[$i]
+                #$folderPathMissing = $true
+                #$i = -1
+                #while ($folderPathMissing) {
+                #    $folderPathMissing = -not (Test-PathActive -Path $folderTargets[++$i])
+                #}
+                #$folderPath = $folderTargets[$i]
+                $folderPath = $folderTargets[0]
 
                 # Set effective name
                 $folderName = $folderPath.Split("\")[-1]
