@@ -1,7 +1,7 @@
 ﻿function Get-SimpleAcl {
     param (
         [Parameter(Mandatory=$false)] $Path,
-        [Parameter(Mandatory=$false)] $Lv = 0
+        [Parameter(Mandatory=$false)] $Lv = 2
     )
 
     # Get path from clipboard if present
@@ -39,17 +39,17 @@
 
     # Check
     $lvCount = 0
-    $startingSlashCount = ([regex]::Matches($Path, "\" )).count
+    $startingSlashCount = ([regex]::Matches($Path, "\\" )).count
     foreach ($sf in $subFolders) {
         # Get all inherited acls for directory
-        $acls = (Get-Acl $Path).Access | Where-Object { $_.IsInherited -eq $true }
+        $acls = (Get-Acl $sf.FullName).Access | Where-Object { $_.IsInherited -eq $true }
 
         if ($acls -eq $null) {
-            $slashCount = ([regex]::Matches($sf.FullName, "\" )).count
+            $slashCount = ([regex]::Matches($sf.FullName, "\\" )).count
             if ($startingSlashCount -ne $slashCount) {
                 $lvCount += $slashCount - $startingSlashCount
                 $startingSlashCount = $slashCount
-                $result += '[$($lvCount)]'
+                $result += '    ' + "[$($lvCount)]"
             }
             $result += '    ' + $sf.FullName
             $noSpecial = $false
