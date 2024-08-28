@@ -57,7 +57,7 @@
     }
 
     if ($noSpecial) {
-        $result += '# none #'
+        $result += '    # none #'
     }
 
 
