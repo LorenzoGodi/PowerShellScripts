@@ -1,71 +1,69 @@
 ﻿param (
-    [Parameter(Mandatory=$true)]$FolderToWatch, # Folder to watch
-    [Parameter(Mandatory=$true)]$TypeToWatch, # File type to watch
+    [Parameter(Mandatory=$true)]$Folder, # Folder to watch
+    [Parameter(Mandatory=$true)]$Type, # File type to watch
     [switch]$DeleteAfter # Delete file after execution
 )
 
-# Function to process the file
-function ProcessFile($filePath, $fileName) {
-    Write-Host "     A new .$($TypeToWatch) file has been detected:"
-    Write-Host "     $($fileName)"
-    
-    # Wait until the file is fully available
-    while (-not (Test-Path $filePath)) {
-        Start-Sleep -Milliseconds 100
-    }
-    
-    try {
-        # Open the file
-        Start-Process -FilePath $filePath -ErrorAction Stop
-        Write-Host "     File has been opened."
 
-        # Delete the file
-        if ($DeleteAfter) {
-            Start-Sleep -Seconds 1  # Wait before deletion
-
-            Remove-Item -Path $filePath -Force -ErrorAction Stop
-            Write-Host "     File has been deleted."
-            Start-Sleep -Milliseconds 200
-        }
-    } catch {
-        Write-Host "     Error: $($_.Exception.Message)"
-    }
+# Remove all event handlers and events
+@( "FileCreated", "FileRenamed" ) | ForEach-Object {
+    Unregister-Event -SourceIdentifier $_ -ErrorAction SilentlyContinue
+    Remove-Event -SourceIdentifier $_ -ErrorAction SilentlyContinue
 }
 
-# Define the action to be triggered when a new file is created
-$actionCreated = {
-    Write-Host ""
-    Write-Host "File Created Event Triggered."
-    $filePath = $Event.SourceEventArgs.FullPath
-    $fileName = $Event.SourceEventArgs.Name
+# Do the file watching on the $Path argument's full path
+[string]$fullPath = (Convert-Path $Folder)
 
-    ProcessFile $filePath $fileName
-}
-
-# Define the action to be triggered when a file is renamed
-$actionRenamed = {
-    Write-Host ""
-    Write-Host "File Renamed Event Triggered."
-    $filePath = $Event.SourceEventArgs.FullPath
-    $fileName = $Event.SourceEventArgs.Name
-
-    ProcessFile $filePath $fileName
-}
-
-
-# Create a new FileSystemWatcher
+# Create a new FileSystemWatcher [System.IO.FileSystemWatcher]
 $watcher = New-Object System.IO.FileSystemWatcher
-$watcher.Path = $FolderToWatch
-$watcher.Filter = "*.$($TypeToWatch)"  # Monitor all file types
-$watcher.NotifyFilter = [System.IO.NotifyFilters]'FileName'
+$watcher.Path = $fullPath
+$watcher.Filter = "*.$Type"
+$watcher.IncludeSubdirectories = $false
 
 # Register the events
-Register-ObjectEvent $watcher Created -Action $actionCreated
-Register-ObjectEvent $watcher Renamed -Action $actionRenamed
+Register-ObjectEvent $watcher Created -SourceIdentifier "FileCreated"
+Register-ObjectEvent $watcher Renamed -SourceIdentifier "FileRenamed"
 
-Write-Host "FileSystemWatcher is registered."
-Write-Host "Monitoring type: .$($TypeToWatch) on folder: $FolderToWatch"
-Write-Host "Delete after opening: $($DeleteAfter)"
+Write-Host -backgroundcolor Green "Watching $fullPath for new .$Type files..."
 
-# Keep the script running
-while ($true) { Start-Sleep -Seconds 1 }
+# Start monitoring
+$watcher.EnableRaisingEvents = $true 
+
+[bool]$exitRequested = $false
+
+do {
+    # Wait for an event
+    [System.Management.Automation.PSEventArgs]$e = Wait-Event
+
+    # Get the name of the file
+    [string]$name = $e.SourceEventArgs.Name
+    # The time and date of the event
+    [string]$timeStamp = $e.TimeGenerated.ToString("yyyy-MM-dd HH:mm:ss")
+
+    Write-Host ""
+    Write-Host -foregroundcolor Green "$timeStamp File detected: $name"
+
+    # Open file
+    $filePath = $e.SourceEventArgs.FullPath
+    Start-Process -FilePath $filePath -ErrorAction Stop
+    Write-Host "File has been opened."
+
+    # Delete file
+    if ($DeleteAfter) {
+        Start-Sleep -Seconds 1  # Wait before deletion
+        Remove-Item -Path $filePath -Force -ErrorAction Stop
+        Write-Host "File has been deleted."
+        Start-Sleep -Milliseconds 200
+    }
+
+    # Remove the event because we handled it
+    Remove-Event -EventIdentifier $($e.EventIdentifier)
+
+} while (!$exitRequested)
+
+
+Unregister-Event FileCreated
+Unregister-Event FileRenamed
+
+
+Write-Host "Exited."
