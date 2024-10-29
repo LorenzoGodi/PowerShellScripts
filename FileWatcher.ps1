@@ -17,14 +17,15 @@ function ProcessFile($filePath, $fileName) {
     try {
         # Open the file
         Start-Process -FilePath $filePath -ErrorAction Stop
-        Write-Host "     $fileName has been opened."
+        Write-Host "     File has been opened."
 
         # Delete the file
         if ($DeleteAfter) {
             Start-Sleep -Seconds 1  # Wait before deletion
 
             Remove-Item -Path $filePath -Force -ErrorAction Stop
-            Write-Host "     $fileName has been deleted."
+            Write-Host "     File has been deleted."
+            Start-Sleep -Milliseconds 200
         }
     } catch {
         Write-Host "     Error: $($_.Exception.Message)"
@@ -62,7 +63,9 @@ $watcher.NotifyFilter = [System.IO.NotifyFilters]'FileName'
 Register-ObjectEvent $watcher Created -Action $actionCreated
 Register-ObjectEvent $watcher Renamed -Action $actionRenamed
 
-Write-Host "FileSystemWatcher is registered. Monitoring type: .$($TypeToWatch) on folder: $FolderToWatch"
+Write-Host "FileSystemWatcher is registered."
+Write-Host "Monitoring type: .$($TypeToWatch) on folder: $FolderToWatch"
+Write-Host "Delete after opening: $($DeleteAfter)"
 
 # Keep the script running
 while ($true) { Start-Sleep -Seconds 1 }
